@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pitch Intelligence Pro | Advanced Football Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+        .glass-light { background: rgba(30, 41, 59, 0.6); }
+        .pitch { background: linear-gradient(to bottom, #1a472a 0%, #1e5631 10%, #1a472a 10%, #1e5631 20%, #1a472a 20%, #1e5631 30%, #1a472a 30%, #1e5631 40%, #1a472a 40%, #1e5631 50%, #1a472a 50%, #1e5631 60%, #1a472a 60%, #1e5631 70%, #1a472a 70%, #1e5631 80%, #1a472a 80%, #1e5631 90%, #1a472a 90%, #1e5631 100%); position: relative; border: 3px solid rgba(255,255,255,0.3); border-radius: 8px; }
+        .pitch::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.3); }
+        .pitch::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; }
+        .player-card { background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s; }
+        .player-card:hover { transform: translateY(-2px); border-color: rgba(251, 191, 36, 0.3); }
+        .player-card.selected { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.2); }
+        .attr-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+        .attr-fill { height: 100%; border-radius: 3px; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); } ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slideIn { animation: slideIn 0.3s ease; }
+        .tab-btn.active { background: linear-gradient(135deg, #1a472a, #166534); color: white; }
+        .pos-gk { background: #f59e0b; } .pos-def { background: #3b82f6; } .pos-mid { background: #10b981; } .pos-att { background: #ef4444; }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// REAL PLAYER DATABASE - EA FC 25 Stats (Jan 2026)
+const PLAYERS = {
+    salah: { id: "salah", name: "Mohamed Salah", team: "Liverpool", nation: "🇪🇬", pos: "RW", age: 33, jersey: 11, overall: 90, pace: 90, shooting: 87, passing: 82, dribbling: 90, defense: 45, physical: 75, finishing: 90, composure: 88, stamina: 82, traits: ["Finesse Shot", "Speed Dribbler"] },
+    haaland: { id: "haaland", name: "Erling Haaland", team: "Manchester City", nation: "🇳🇴", pos: "ST", age: 24, jersey: 9, overall: 92, pace: 91, shooting: 93, passing: 66, dribbling: 80, defense: 45, physical: 88, finishing: 95, composure: 88, stamina: 78, traits: ["Power Header", "Speed Dribbler"] },
+    palmer: { id: "palmer", name: "Cole Palmer", team: "Chelsea", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "CAM", age: 23, jersey: 20, overall: 86, pace: 78, shooting: 84, passing: 84, dribbling: 88, defense: 38, physical: 62, finishing: 84, composure: 86, stamina: 72, traits: ["Finesse Shot", "Playmaker"] },
+    vinicius: { id: "vinicius", name: "Vinícius Jr", team: "Real Madrid", nation: "🇧🇷", pos: "LW", age: 24, jersey: 7, overall: 92, pace: 96, shooting: 82, passing: 78, dribbling: 94, defense: 32, physical: 68, finishing: 82, composure: 82, stamina: 82, traits: ["Speed Dribbler", "Flair"] },
+    mbappe: { id: "mbappe", name: "Kylian Mbappé", team: "Real Madrid", nation: "🇫🇷", pos: "ST", age: 26, jersey: 9, overall: 92, pace: 97, shooting: 90, passing: 78, dribbling: 92, defense: 38, physical: 76, finishing: 90, composure: 86, stamina: 80, traits: ["Speed Dribbler", "Finesse Shot"] },
+    bellingham: { id: "bellingham", name: "Jude Bellingham", team: "Real Madrid", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "CAM", age: 21, jersey: 5, overall: 90, pace: 80, shooting: 82, passing: 84, dribbling: 86, defense: 72, physical: 80, finishing: 82, composure: 86, stamina: 90, traits: ["Leadership", "Long Shot"] },
+    rodri: { id: "rodri", name: "Rodri", team: "Manchester City", nation: "🇪🇸", pos: "CDM", age: 28, jersey: 16, overall: 91, pace: 62, shooting: 72, passing: 88, dribbling: 82, defense: 86, physical: 84, finishing: 70, composure: 92, stamina: 88, traits: ["Leadership", "Playmaker"] },
+    saka: { id: "saka", name: "Bukayo Saka", team: "Arsenal", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "RW", age: 23, jersey: 7, overall: 88, pace: 86, shooting: 80, passing: 84, dribbling: 88, defense: 62, physical: 72, finishing: 80, composure: 82, stamina: 86, traits: ["Playmaker", "Flair"] },
+    odegaard: { id: "odegaard", name: "Martin Ødegaard", team: "Arsenal", nation: "🇳🇴", pos: "CAM", age: 26, jersey: 8, overall: 88, pace: 74, shooting: 78, passing: 88, dribbling: 88, defense: 58, physical: 62, finishing: 76, composure: 86, stamina: 80, traits: ["Playmaker"] },
+    rice: { id: "rice", name: "Declan Rice", team: "Arsenal", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "CDM", age: 26, jersey: 41, overall: 88, pace: 74, shooting: 68, passing: 82, dribbling: 80, defense: 86, physical: 84, finishing: 68, composure: 86, stamina: 90, traits: ["Leadership"] },
+    kane: { id: "kane", name: "Harry Kane", team: "Bayern Munich", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "ST", age: 31, jersey: 9, overall: 90, pace: 68, shooting: 92, passing: 84, dribbling: 82, defense: 48, physical: 82, finishing: 94, composure: 92, stamina: 72, traits: ["Finesse Shot", "Power Header"] },
+    lewandowski: { id: "lewandowski", name: "Robert Lewandowski", team: "Barcelona", nation: "🇵🇱", pos: "ST", age: 36, jersey: 9, overall: 87, pace: 68, shooting: 92, passing: 78, dribbling: 82, defense: 42, physical: 78, finishing: 94, composure: 92, stamina: 68, traits: ["Finesse Shot", "Power Header"] },
+    yamal: { id: "yamal", name: "Lamine Yamal", team: "Barcelona", nation: "🇪🇸", pos: "RW", age: 17, jersey: 19, overall: 84, pace: 90, shooting: 74, passing: 80, dribbling: 88, defense: 28, physical: 52, finishing: 74, composure: 78, stamina: 78, traits: ["Flair", "Speed Dribbler"], potential: 95 },
+    pedri: { id: "pedri", name: "Pedri", team: "Barcelona", nation: "🇪🇸", pos: "CM", age: 22, jersey: 8, overall: 87, pace: 72, shooting: 68, passing: 88, dribbling: 88, defense: 68, physical: 58, finishing: 68, composure: 86, stamina: 78, traits: ["Playmaker"] },
+    van_dijk: { id: "van_dijk", name: "Virgil van Dijk", team: "Liverpool", nation: "🇳🇱", pos: "CB", age: 33, jersey: 4, overall: 89, pace: 77, shooting: 58, passing: 78, dribbling: 70, defense: 90, physical: 86, finishing: 52, composure: 90, stamina: 78, traits: ["Leadership", "Power Header"] },
+    trent: { id: "trent", name: "Trent Alexander-Arnold", team: "Liverpool", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "RB", age: 26, jersey: 66, overall: 87, pace: 76, shooting: 62, passing: 90, dribbling: 80, defense: 72, physical: 68, finishing: 62, composure: 80, stamina: 82, traits: ["Long Passer", "Playmaker"] },
+    alisson: { id: "alisson", name: "Alisson Becker", team: "Liverpool", nation: "🇧🇷", pos: "GK", age: 32, jersey: 1, overall: 89, diving: 86, handling: 85, kicking: 88, reflexes: 89, positioning: 90, composure: 88 },
+    robertson: { id: "robertson", name: "Andrew Robertson", team: "Liverpool", nation: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", pos: "LB", age: 30, jersey: 26, overall: 85, pace: 84, shooting: 58, passing: 82, dribbling: 78, defense: 80, physical: 72, finishing: 52, composure: 78, stamina: 92 },
+    mac_allister: { id: "mac_allister", name: "Alexis Mac Allister", team: "Liverpool", nation: "🇦🇷", pos: "CM", age: 26, jersey: 10, overall: 86, pace: 72, shooting: 74, passing: 86, dribbling: 82, defense: 76, physical: 72, finishing: 72, composure: 84, stamina: 86 },
+    szoboszlai: { id: "szoboszlai", name: "Dominik Szoboszlai", team: "Liverpool", nation: "🇭🇺", pos: "CAM", age: 24, jersey: 8, overall: 84, pace: 80, shooting: 78, passing: 84, dribbling: 83, defense: 62, physical: 74, finishing: 76, composure: 78, stamina: 88 },
+    diaz: { id: "diaz", name: "Luis Díaz", team: "Liverpool", nation: "🇨🇴", pos: "LW", age: 28, jersey: 7, overall: 86, pace: 92, shooting: 78, passing: 76, dribbling: 88, defense: 42, physical: 68, finishing: 78, composure: 78, stamina: 86, traits: ["Speed Dribbler"] },
+    nunez: { id: "nunez", name: "Darwin Núñez", team: "Liverpool", nation: "🇺🇾", pos: "ST", age: 25, jersey: 9, overall: 83, pace: 92, shooting: 82, passing: 62, dribbling: 76, defense: 38, physical: 80, finishing: 80, composure: 68, stamina: 82, traits: ["Speed Dribbler", "Power Header"] },
+    gravenberch: { id: "gravenberch", name: "Ryan Gravenberch", team: "Liverpool", nation: "🇳🇱", pos: "CM", age: 22, jersey: 38, overall: 83, pace: 78, shooting: 68, passing: 82, dribbling: 83, defense: 74, physical: 76, finishing: 68, composure: 76, stamina: 84 },
+    ederson: { id: "ederson", name: "Ederson", team: "Manchester City", nation: "🇧🇷", pos: "GK", age: 31, jersey: 31, overall: 88, diving: 84, handling: 82, kicking: 93, reflexes: 86, positioning: 86, composure: 90 },
+    de_bruyne: { id: "de_bruyne", name: "Kevin De Bruyne", team: "Manchester City", nation: "🇧🇪", pos: "CAM", age: 33, jersey: 17, overall: 89, pace: 72, shooting: 84, passing: 94, dribbling: 86, defense: 62, physical: 74, finishing: 82, composure: 88, stamina: 78, traits: ["Playmaker", "Long Passer"] },
+    foden: { id: "foden", name: "Phil Foden", team: "Manchester City", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "LW", age: 24, jersey: 47, overall: 88, pace: 84, shooting: 82, passing: 84, dribbling: 90, defense: 52, physical: 62, finishing: 82, composure: 82, stamina: 80, traits: ["Technical Dribbler", "Finesse Shot"] },
+    bernardo: { id: "bernardo", name: "Bernardo Silva", team: "Manchester City", nation: "🇵🇹", pos: "CM", age: 30, jersey: 20, overall: 87, pace: 76, shooting: 74, passing: 86, dribbling: 90, defense: 62, physical: 58, finishing: 72, composure: 86, stamina: 88 },
+    doku: { id: "doku", name: "Jérémy Doku", team: "Manchester City", nation: "🇧🇪", pos: "RW", age: 22, jersey: 11, overall: 82, pace: 95, shooting: 68, passing: 76, dribbling: 86, defense: 35, physical: 58, finishing: 68, composure: 72, stamina: 82, traits: ["Speed Dribbler", "Flair"] },
+    grealish: { id: "grealish", name: "Jack Grealish", team: "Manchester City", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "LW", age: 29, jersey: 10, overall: 83, pace: 78, shooting: 68, passing: 80, dribbling: 88, defense: 42, physical: 70, finishing: 68, composure: 80, stamina: 74, traits: ["Flair"] },
+    dias: { id: "dias", name: "Rúben Dias", team: "Manchester City", nation: "🇵🇹", pos: "CB", age: 27, jersey: 3, overall: 87, pace: 70, shooting: 42, passing: 76, dribbling: 62, defense: 88, physical: 84, finishing: 42, composure: 88, stamina: 82, traits: ["Leadership"] },
+    walker: { id: "walker", name: "Kyle Walker", team: "Manchester City", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "RB", age: 34, jersey: 2, overall: 82, pace: 90, shooting: 52, passing: 72, dribbling: 72, defense: 78, physical: 80, finishing: 48, composure: 76, stamina: 86 },
+    raya: { id: "raya", name: "David Raya", team: "Arsenal", nation: "🇪🇸", pos: "GK", age: 29, jersey: 22, overall: 86, diving: 84, handling: 82, kicking: 86, reflexes: 86, positioning: 84, composure: 84 },
+    saliba: { id: "saliba", name: "William Saliba", team: "Arsenal", nation: "🇫🇷", pos: "CB", age: 23, jersey: 12, overall: 86, pace: 80, shooting: 38, passing: 68, dribbling: 62, defense: 86, physical: 82, finishing: 32, composure: 84, stamina: 82 },
+    gabriel: { id: "gabriel", name: "Gabriel Magalhães", team: "Arsenal", nation: "🇧🇷", pos: "CB", age: 26, jersey: 6, overall: 85, pace: 72, shooting: 52, passing: 62, dribbling: 58, defense: 84, physical: 84, finishing: 48, composure: 80, stamina: 80, traits: ["Power Header"] },
+    martinelli: { id: "martinelli", name: "Gabriel Martinelli", team: "Arsenal", nation: "🇧🇷", pos: "LW", age: 23, jersey: 11, overall: 84, pace: 92, shooting: 78, passing: 74, dribbling: 84, defense: 38, physical: 68, finishing: 78, composure: 76, stamina: 88, traits: ["Speed Dribbler"] },
+    havertz: { id: "havertz", name: "Kai Havertz", team: "Arsenal", nation: "🇩🇪", pos: "CF", age: 25, jersey: 29, overall: 84, pace: 76, shooting: 80, passing: 78, dribbling: 82, defense: 52, physical: 76, finishing: 80, composure: 80, stamina: 78 },
+    white: { id: "white", name: "Ben White", team: "Arsenal", nation: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pos: "RB", age: 27, jersey: 4, overall: 84, pace: 78, shooting: 48, passing: 78, dribbling: 72, defense: 82, physical: 74, finishing: 42, composure: 84, stamina: 84 },
+    timber: { id: "timber", name: "Jurriën Timber", team: "Arsenal", nation: "🇳🇱", pos: "LB", age: 23, jersey: 12, overall: 82, pace: 82, shooting: 52, passing: 78, dribbling: 78, defense: 80, physical: 72, finishing: 48, composure: 80, stamina: 84 },
+    rodrygo: { id: "rodrygo", name: "Rodrygo", team: "Real Madrid", nation: "🇧🇷", pos: "RW", age: 24, jersey: 11, overall: 86, pace: 90, shooting: 80, passing: 78, dribbling: 86, defense: 38, physical: 62, finishing: 80, composure: 82, stamina: 80, traits: ["Finesse Shot"] },
+    valverde: { id: "valverde", name: "Federico Valverde", team: "Real Madrid", nation: "🇺🇾", pos: "CM", age: 26, jersey: 15, overall: 88, pace: 86, shooting: 78, passing: 82, dribbling: 82, defense: 78, physical: 82, finishing: 76, composure: 82, stamina: 94, traits: ["Long Shot"] },
+    courtois: { id: "courtois", name: "Thibaut Courtois", team: "Real Madrid", nation: "🇧🇪", pos: "GK", age: 32, jersey: 1, overall: 89, diving: 88, handling: 86, kicking: 78, reflexes: 90, positioning: 88, composure: 88 },
+    rudiger: { id: "rudiger", name: "Antonio Rüdiger", team: "Real Madrid", nation: "🇩🇪", pos: "CB", age: 31, jersey: 22, overall: 85, pace: 82, shooting: 42, passing: 68, dribbling: 58, defense: 84, physical: 86, finishing: 38, composure: 82, stamina: 82 },
+    gavi: { id: "gavi", name: "Gavi", team: "Barcelona", nation: "🇪🇸", pos: "CM", age: 20, jersey: 6, overall: 83, pace: 78, shooting: 62, passing: 84, dribbling: 84, defense: 72, physical: 64, finishing: 62, composure: 78, stamina: 90 },
+    raphinha: { id: "raphinha", name: "Raphinha", team: "Barcelona", nation: "🇧🇷", pos: "RW", age: 28, jersey: 11, overall: 84, pace: 88, shooting: 78, passing: 80, dribbling: 86, defense: 38, physical: 68, finishing: 78, composure: 78, stamina: 82 },
+    ter_stegen: { id: "ter_stegen", name: "Marc-André ter Stegen", team: "Barcelona", nation: "🇩🇪", pos: "GK", age: 32, jersey: 1, overall: 87, diving: 86, handling: 84, kicking: 88, reflexes: 88, positioning: 86, composure: 86 },
+    isak: { id: "isak", name: "Alexander Isak", team: "Newcastle", nation: "🇸🇪", pos: "ST", age: 25, jersey: 14, overall: 86, pace: 88, shooting: 86, passing: 72, dribbling: 84, defense: 32, physical: 72, finishing: 88, composure: 84, stamina: 78, traits: ["Finesse Shot"] },
+    wood: { id: "wood", name: "Chris Wood", team: "Nottm Forest", nation: "🇳🇿", pos: "ST", age: 34, jersey: 11, overall: 80, pace: 62, shooting: 82, passing: 58, dribbling: 68, defense: 42, physical: 82, finishing: 84, composure: 82, stamina: 72, traits: ["Power Header", "Target Forward"] },
+    jackson: { id: "jackson", name: "Nicolas Jackson", team: "Chelsea", nation: "🇸🇳", pos: "ST", age: 24, jersey: 15, overall: 81, pace: 88, shooting: 78, passing: 68, dribbling: 80, defense: 32, physical: 72, finishing: 78, composure: 76, stamina: 82 },
+    caicedo: { id: "caicedo", name: "Moisés Caicedo", team: "Chelsea", nation: "🇪🇨", pos: "CDM", age: 23, jersey: 25, overall: 84, pace: 74, shooting: 68, passing: 78, dribbling: 76, defense: 84, physical: 82, finishing: 68, composure: 80, stamina: 88 }
+};
+
+// TEAMS
+const TEAMS = {
+    liverpool: { name: "Liverpool", color: "#C8102E", players: ["alisson", "trent", "van_dijk", "robertson", "mac_allister", "gravenberch", "szoboszlai", "salah", "diaz", "nunez"] },
+    manchester_city: { name: "Manchester City", color: "#6CABDD", players: ["ederson", "walker", "dias", "rodri", "de_bruyne", "bernardo", "foden", "haaland", "doku", "grealish"] },
+    arsenal: { name: "Arsenal", color: "#EF0107", players: ["raya", "white", "saliba", "gabriel", "timber", "rice", "odegaard", "saka", "martinelli", "havertz"] },
+    real_madrid: { name: "Real Madrid", color: "#FFFFFF", players: ["courtois", "rudiger", "bellingham", "vinicius", "mbappe", "rodrygo", "valverde"] },
+    barcelona: { name: "Barcelona", color: "#A50044", players: ["ter_stegen", "pedri", "gavi", "yamal", "lewandowski", "raphinha"] },
+    chelsea: { name: "Chelsea", color: "#034694", players: ["palmer", "jackson", "caicedo"] }
+};
+
+// TACTICS
+const TACTICS = {
+    gegenpress: { id: "gegenpress", name: "Gegenpressing", desc: "Intense counter-pressing", tempo: 95, pressing: 95, line: 85, width: 70, stamina: -2.5 },
+    tiki_taka: { id: "tiki_taka", name: "Tiki-Taka", desc: "Short passing possession", tempo: 40, pressing: 70, line: 70, width: 60, stamina: -1.0 },
+    counter: { id: "counter", name: "Counter-Attack", desc: "Absorb and strike fast", tempo: 85, pressing: 30, line: 35, width: 50, stamina: -0.8 },
+    park_bus: { id: "park_bus", name: "Park the Bus", desc: "Ultra-defensive", tempo: 20, pressing: 15, line: 20, width: 40, stamina: -0.5 },
+    possession: { id: "possession", name: "Possession", desc: "Control through ball", tempo: 50, pressing: 55, line: 60, width: 75, stamina: -1.2 },
+    high_press: { id: "high_press", name: "High Press", desc: "Win ball high up", tempo: 80, pressing: 90, line: 80, width: 65, stamina: -2.0 }
+};
+
+// SIMULATION
+const simulateMatch = (homeTeam, awayTeam, homeTactics, awayTactics, homeLineup, awayLineup, phases = []) => {
+    const events = [];
+    let homeScore = 0, awayScore = 0;
+    const homeStats = { shots: 0, onTarget: 0, corners: 0, fouls: 0, yellows: 0, xG: 0, passAcc: 78 + Math.floor(Math.random() * 12) };
+    const awayStats = { ...homeStats, passAcc: 78 + Math.floor(Math.random() * 12) };
+    const playerStats = {};
+    
+    [...homeLineup, ...awayLineup].forEach(id => {
+        playerStats[id] = { touches: 0, passes: 0, passAcc: 0, shots: 0, goals: 0, assists: 0, rating: 6.0, stamina: 100, heatMap: Array(100).fill(0) };
+    });
+    
+    const homeStr = homeLineup.reduce((s, id) => s + (PLAYERS[id]?.overall || 70), 0) / homeLineup.length * (1 + homeTactics.pressing / 200);
+    const awayStr = awayLineup.reduce((s, id) => s + (PLAYERS[id]?.overall || 70), 0) / awayLineup.length * (1 + awayTactics.pressing / 200);
+    const possession = [Math.round(50 + (homeStr - awayStr) / 2 + (Math.random() * 10 - 5)), 0];
+    possession[1] = 100 - possession[0];
+    
+    const getTactics = (min, base, phases, team) => {
+        const phase = phases.find(p => p.team === team && min >= p.start && min <= p.end);
+        return phase ? TACTICS[phase.style] : base;
+    };
+    
+    for (let min = 1; min <= 90; min++) {
+        const curHomeTac = getTactics(min, homeTactics, phases, 'home');
+        homeLineup.forEach(id => { if (playerStats[id]) playerStats[id].stamina = Math.max(0, playerStats[id].stamina + (curHomeTac.stamina || -1) / 90); });
+        
+        const roll = Math.random() * 100;
+        
+        if (roll < 2.5) {
+            const team = Math.random() * 100 < possession[0] ? 'home' : 'away';
+            const lineup = team === 'home' ? homeLineup : awayLineup;
+            const attackers = lineup.filter(id => ['ST', 'CF', 'LW', 'RW', 'CAM'].includes(PLAYERS[id]?.pos));
+            const scorer = attackers[Math.floor(Math.random() * attackers.length)] || lineup[0];
+            const p = PLAYERS[scorer];
+            
+            const goalChance = ((p?.finishing || 70) / 100) * ((p?.composure || 70) / 100) * (playerStats[scorer]?.stamina / 100) * 0.45;
+            
+            if (Math.random() < goalChance) {
+                if (team === 'home') { homeScore++; homeStats.xG += 0.7 + Math.random() * 0.3; }
+                else { awayScore++; awayStats.xG += 0.7 + Math.random() * 0.3; }
+                
+                playerStats[scorer].goals++;
+                playerStats[scorer].rating += 1.0;
+                
+                const mids = lineup.filter(id => ['CM', 'CAM', 'CDM'].includes(PLAYERS[id]?.pos));
+                const assister = mids[Math.floor(Math.random() * mids.length)];
+                if (assister && Math.random() > 0.3) {
+                    playerStats[assister].assists++;
+                    playerStats[assister].rating += 0.5;
+                }
+                
+                events.push({ min, type: 'goal', team, player: scorer, assist: assister });
+            } else {
+                const stats = team === 'home' ? homeStats : awayStats;
+                stats.shots++;
+                playerStats[scorer].shots++;
+                if (Math.random() > 0.4) stats.onTarget++;
+                stats.xG += 0.1 + Math.random() * 0.2;
+            }
+        } else if (roll < 7) {
+            const team = Math.random() * 100 < possession[0] ? 'home' : 'away';
+            (team === 'home' ? homeStats : awayStats).shots++;
+        } else if (roll < 11) {
+            (Math.random() * 100 < possession[0] ? homeStats : awayStats).corners++;
+        } else if (roll < 16) {
+            const team = Math.random() > 0.5 ? 'home' : 'away';
+            const stats = team === 'home' ? homeStats : awayStats;
+            stats.fouls++;
+            if (Math.random() < 0.12) {
+                stats.yellows++;
+                const lineup = team === 'home' ? homeLineup : awayLineup;
+                events.push({ min, type: 'yellow', team, player: lineup[Math.floor(Math.random() * lineup.length)] });
+            }
+        }
+        
+        const activeTeam = Math.random() * 100 < possession[0] ? 'home' : 'away';
+        const lineup = activeTeam === 'home' ? homeLineup : awayLineup;
+        lineup.forEach(id => {
+            const pos = PLAYERS[id]?.pos;
+            const wt = ['CM', 'CAM', 'CDM'].includes(pos) ? 2 : 1;
+            playerStats[id].touches += Math.floor(Math.random() * 3 * wt);
+            
+            let zone = 50;
+            if (pos === 'GK') zone = 5;
+            else if (['CB', 'LB', 'RB'].includes(pos)) zone = 20;
+            else if (['CDM', 'CM'].includes(pos)) zone = 45;
+            else if (['CAM'].includes(pos)) zone = 60;
+            else if (['LW', 'RW', 'ST', 'CF'].includes(pos)) zone = 80;
+            zone = Math.max(0, Math.min(99, zone + Math.floor(Math.random() * 20 - 10)));
+            playerStats[id].heatMap[zone]++;
+        });
+    }
+    
+    [...homeLineup, ...awayLineup].forEach(id => {
+        const ps = playerStats[id];
+        ps.passAcc = 70 + Math.floor(Math.random() * 20);
+        ps.rating = Math.max(4, Math.min(10, ps.rating + ps.passAcc / 200 + ps.touches / 100 + ps.goals * 0.3));
+        ps.rating = Math.round(ps.rating * 10) / 10;
+    });
+    
+    return { homeScore, awayScore, possession, homeStats, awayStats, playerStats, events, homeXG: Math.round(homeStats.xG * 100) / 100, awayXG: Math.round(awayStats.xG * 100) / 100 };
+};
+
+const calcWinProb = (lineup, oppLineup, tactics) => {
+    let str = lineup.reduce((s, id) => s + (PLAYERS[id]?.overall || 70), 0);
+    let oppStr = oppLineup.reduce((s, id) => s + (PLAYERS[id]?.overall || 70), 0);
+    str *= (1 + tactics.pressing / 300);
+    const ratio = str / (str + oppStr);
+    const win = Math.min(80, Math.max(20, Math.round(ratio * 100 + 5)));
+    const draw = Math.max(15, 30 - Math.abs(win - 50) / 2);
+    return { win, draw, lose: 100 - win - draw };
+};
+
+const getSubRecs = (lineup, bench, stats, min, scoreDiff) => {
+    const recs = [];
+    const tired = lineup.filter(id => stats[id]?.stamina < 50);
+    
+    if (scoreDiff < 0 && min > 60) {
+        const att = bench.find(id => ['ST', 'CF', 'LW', 'RW'].includes(PLAYERS[id]?.pos));
+        const def = lineup.find(id => ['CDM', 'CM'].includes(PLAYERS[id]?.pos));
+        if (att && def) recs.push({ out: def, in: att, reason: 'Chasing - add attack', min: min + 5, priority: 'high' });
+    } else if (scoreDiff > 0 && min > 70) {
+        const def = bench.find(id => ['CDM', 'CB'].includes(PLAYERS[id]?.pos));
+        const att = lineup.find(id => ['LW', 'RW'].includes(PLAYERS[id]?.pos));
+        if (def && att) recs.push({ out: att, in: def, reason: 'Protect lead', min: min + 3, priority: 'medium' });
+    }
+    
+    tired.slice(0, 1).forEach(id => {
+        const pos = PLAYERS[id]?.pos;
+        const rep = bench.find(b => PLAYERS[b]?.pos === pos);
+        if (rep) recs.push({ out: id, in: rep, reason: `Low stamina (${Math.round(stats[id]?.stamina)}%)`, min: min + 2, priority: 'high' });
+    });
+    
+    return recs.slice(0, 3);
+};
+
+// COMPONENTS
+const AttrBar = ({ val, color = "amber" }) => {
+    const colors = { amber: "bg-amber-500", green: "bg-green-500", blue: "bg-blue-500", red: "bg-red-500", purple: "bg-purple-500" };
+    return <div className="attr-bar flex-1 ml-2"><div className={`attr-fill ${colors[color]}`} style={{ width: `${val}%` }} /></div>;
+};
+
+const PlayerCard = ({ id, selected, onClick, showDetails }) => {
+    const p = PLAYERS[id];
+    if (!p) return null;
+    const posColor = { GK: "pos-gk", CB: "pos-def", LB: "pos-def", RB: "pos-def", CDM: "pos-mid", CM: "pos-mid", CAM: "pos-mid", LW: "pos-att", RW: "pos-att", ST: "pos-att", CF: "pos-att" };
+    return (
+        <div className={`player-card rounded-lg p-3 cursor-pointer ${selected ? 'selected' : ''}`} onClick={onClick}>
+            <div className="flex items-center gap-3">
+                <div className="relative">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-lg font-bold">{p.overall}</div>
+                    <span className={`absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded text-xs font-bold text-white ${posColor[p.pos]}`}>{p.pos}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-sm truncate">{p.name}</h4>
+                    <p className="text-xs text-slate-400">{p.nation} {p.team}</p>
+                </div>
+            </div>
+            {showDetails && (
+                <div className="mt-3 space-y-1.5 text-xs">
+                    {[['PAC', p.pace, 'green'], ['SHO', p.shooting, 'red'], ['PAS', p.passing, 'blue'], ['DRI', p.dribbling, 'purple'], ['DEF', p.defense, 'amber'], ['PHY', p.physical, 'green']].map(([l, v, c]) => (
+                        <div key={l} className="flex items-center"><span className="text-slate-400 w-8">{l}</span><span className="w-6 text-right font-mono">{v}</span><AttrBar val={v} color={c} /></div>
+                    ))}
+                    {p.traits && <div className="flex flex-wrap gap-1 mt-2">{p.traits.map((t, i) => <span key={i} className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs">{t}</span>)}</div>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const TacticsSlider = ({ label, value, onChange }) => (
+    <div className="space-y-1">
+        <div className="flex justify-between text-sm"><span className="text-slate-400">{label}</span><span className="font-mono text-amber-400">{value}</span></div>
+        <input type="range" min="0" max="100" value={value} onChange={e => onChange(parseInt(e.target.value))} className="w-full accent-amber-500" />
+    </div>
+);
+
+const HeatMap = ({ data, size = 100 }) => {
+    const max = Math.max(...data, 1);
+    return (
+        <div className="grid grid-cols-10 gap-px" style={{ width: size, height: size * 1.4 }}>
+            {data.map((v, i) => <div key={i} style={{ backgroundColor: `rgba(255, ${Math.round(150 - 150 * v / max)}, 50, ${0.2 + 0.8 * v / max})`, borderRadius: 2 }} />)}
+        </div>
+    );
+};
+
+const PitchView = ({ lineup, color = "#C8102E" }) => {
+    const positions = { GK: { x: 50, y: 92 }, CB: { x: 50, y: 75 }, LB: { x: 15, y: 72 }, RB: { x: 85, y: 72 }, CDM: { x: 50, y: 58 }, CM: { x: 35, y: 52 }, CAM: { x: 50, y: 40 }, LW: { x: 18, y: 28 }, RW: { x: 82, y: 28 }, ST: { x: 50, y: 18 }, CF: { x: 50, y: 25 } };
+    const usedPos = {};
+    return (
+        <div className="pitch w-full aspect-[2/3] relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[16%] border-2 border-white/30 border-t-0" />
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-[16%] border-2 border-white/30 border-b-0" />
+            {lineup.map((id, i) => {
+                const p = PLAYERS[id];
+                if (!p) return null;
+                let pos = positions[p.pos] || positions.CM;
+                if (usedPos[p.pos]) pos = { x: pos.x + (Math.random() * 20 - 10), y: pos.y + (Math.random() * 6 - 3) };
+                usedPos[p.pos] = true;
+                return (
+                    <div key={id} className="absolute transform -translate-x-1/2 -translate-y-1/2 group" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white" style={{ backgroundColor: color }}>{p.jersey || i + 1}</div>
+                        <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-black/90 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100">{p.name.split(' ').pop()}</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// MAIN APP
+const App = () => {
+    const [tab, setTab] = useState('lineup');
+    const [team, setTeam] = useState('liverpool');
+    const [opponent, setOpponent] = useState('manchester_city');
+    const [lineup, setLineup] = useState([]);
+    const [bench, setBench] = useState([]);
+    const [tactics, setTactics] = useState(TACTICS.possession);
+    const [phases, setPhases] = useState([]);
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [result, setResult] = useState(null);
+    const [winProb, setWinProb] = useState({ win: 50, draw: 25, lose: 25 });
+    const [subs, setSubs] = useState([]);
+    
+    useEffect(() => {
+        const t = TEAMS[team];
+        if (t) { setLineup(t.players.slice(0, 11)); setBench(t.players.slice(11)); }
+    }, [team]);
+    
+    useEffect(() => {
+        if (lineup.length > 0) {
+            const opp = TEAMS[opponent]?.players.slice(0, 11) || [];
+            setWinProb(calcWinProb(lineup, opp, tactics));
+        }
+    }, [lineup, tactics, opponent]);
+    
+    const runSim = () => {
+        const oppLineup = TEAMS[opponent]?.players.slice(0, 11) || [];
+        const res = simulateMatch(TEAMS[team], TEAMS[opponent], tactics, TACTICS.possession, lineup, oppLineup, phases);
+        setResult(res);
+        setSubs(getSubRecs(lineup, bench, res.playerStats, 60, res.homeScore - res.awayScore));
+    };
+    
+    const addPhase = () => setPhases([...phases, { team: 'home', start: 0, end: 15, style: 'gegenpress' }]);
+    
+    const tabs = [{ id: 'lineup', label: '⚽ Lineup' }, { id: 'tactics', label: '🎯 Tactics' }, { id: 'simulate', label: '🎮 Simulate' }, { id: 'analysis', label: '📊 Analysis' }];
+
+    return (
+        <div className="min-h-screen pb-12">
+            <header className="glass border-b border-white/10 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center font-bold text-xl text-black">PI</div>
+                            <div><h1 className="text-2xl font-bold">Pitch Intelligence Pro</h1><p className="text-xs text-slate-400">Advanced Match Simulation • Jan 2026</p></div>
+                        </div>
+                        <div className="hidden md:flex items-center gap-4 glass-light rounded-xl px-4 py-2">
+                            <div className="text-center"><div className="text-2xl font-bold text-green-400">{winProb.win}%</div><div className="text-xs text-slate-400">Win</div></div>
+                            <div className="text-center"><div className="text-2xl font-bold text-slate-400">{winProb.draw}%</div><div className="text-xs text-slate-400">Draw</div></div>
+                            <div className="text-center"><div className="text-2xl font-bold text-red-400">{winProb.lose}%</div><div className="text-xs text-slate-400">Lose</div></div>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 mt-4 overflow-x-auto pb-2">{tabs.map(t => <button key={t.id} onClick={() => setTab(t.id)} className={`tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${tab === t.id ? 'active' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>{t.label}</button>)}</div>
+                </div>
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 py-6">
+                <div className="glass rounded-xl p-4 mb-6">
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div><label className="text-sm text-slate-400 mb-2 block">Your Team</label><select value={team} onChange={e => setTeam(e.target.value)} className="w-full bg-slate-800/50 border border-white/10 rounded-lg px-4 py-2">{Object.entries(TEAMS).map(([k, t]) => <option key={k} value={k}>{t.name}</option>)}</select></div>
+                        <div><label className="text-sm text-slate-400 mb-2 block">Opponent</label><select value={opponent} onChange={e => setOpponent(e.target.value)} className="w-full bg-slate-800/50 border border-white/10 rounded-lg px-4 py-2">{Object.entries(TEAMS).map(([k, t]) => <option key={k} value={k}>{t.name}</option>)}</select></div>
+                    </div>
+                </div>
+
+                {tab === 'lineup' && (
+                    <div className="grid lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 glass rounded-xl p-4"><h3 className="font-semibold mb-4">Formation: 4-3-3</h3><PitchView lineup={lineup} color={TEAMS[team]?.color} /></div>
+                        <div className="glass rounded-xl p-4"><h3 className="font-semibold mb-4">Squad</h3><div className="space-y-2 max-h-[600px] overflow-y-auto">{TEAMS[team]?.players.map(id => <PlayerCard key={id} id={id} selected={selectedPlayer === id} onClick={() => setSelectedPlayer(selectedPlayer === id ? null : id)} showDetails={selectedPlayer === id} />)}</div></div>
+                    </div>
+                )}
+
+                {tab === 'tactics' && (
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        <div className="glass rounded-xl p-4">
+                            <h3 className="font-semibold mb-4">Tactical System</h3>
+                            <div className="grid grid-cols-2 gap-2">{Object.entries(TACTICS).map(([k, s]) => <button key={k} onClick={() => setTactics(s)} className={`p-3 rounded-lg border text-left ${tactics.id === k ? 'border-amber-500 bg-amber-500/10' : 'border-white/10 hover:border-white/20'}`}><div className="font-semibold text-sm">{s.name}</div><div className="text-xs text-slate-400 mt-1">{s.desc}</div></button>)}</div>
+                        </div>
+                        <div className="glass rounded-xl p-4">
+                            <h3 className="font-semibold mb-4">Custom Tactics</h3>
+                            <div className="space-y-4">
+                                <TacticsSlider label="Tempo" value={tactics.tempo} onChange={v => setTactics({ ...tactics, tempo: v })} />
+                                <TacticsSlider label="Pressing" value={tactics.pressing} onChange={v => setTactics({ ...tactics, pressing: v })} />
+                                <TacticsSlider label="Defensive Line" value={tactics.line} onChange={v => setTactics({ ...tactics, line: v })} />
+                                <TacticsSlider label="Width" value={tactics.width} onChange={v => setTactics({ ...tactics, width: v })} />
+                            </div>
+                            <div className="mt-6">
+                                <div className="flex justify-between items-center mb-3"><h4 className="font-semibold">Tactical Phases</h4><button onClick={addPhase} className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded text-sm hover:bg-amber-500/30">+ Add</button></div>
+                                <p className="text-xs text-slate-400 mb-3">e.g., "Gegenpress first 15 mins"</p>
+                                {phases.map((ph, i) => (
+                                    <div key={i} className="glass-light rounded-lg p-3 mb-2 grid grid-cols-4 gap-2">
+                                        <div><label className="text-xs text-slate-400">Start</label><input type="number" value={ph.start} onChange={e => { const u = [...phases]; u[i].start = parseInt(e.target.value); setPhases(u); }} className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-sm" /></div>
+                                        <div><label className="text-xs text-slate-400">End</label><input type="number" value={ph.end} onChange={e => { const u = [...phases]; u[i].end = parseInt(e.target.value); setPhases(u); }} className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-sm" /></div>
+                                        <div className="col-span-2"><label className="text-xs text-slate-400">Style</label><select value={ph.style} onChange={e => { const u = [...phases]; u[i].style = e.target.value; setPhases(u); }} className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-sm">{Object.entries(TACTICS).map(([k, s]) => <option key={k} value={k}>{s.name}</option>)}</select></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {tab === 'simulate' && (
+                    <div className="space-y-6">
+                        <div className="glass rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">Match Simulation</h3><button onClick={runSim} className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-semibold rounded-lg hover:opacity-90">▶ Run Simulation</button></div>
+                            {result && (
+                                <div className="animate-slideIn">
+                                    <div className="text-center py-6">
+                                        <div className="flex items-center justify-center gap-8">
+                                            <div className="text-right"><div className="text-2xl font-bold">{TEAMS[team]?.name}</div><div className="text-5xl font-bold text-amber-400 mt-2">{result.homeScore}</div><div className="text-sm text-slate-400 mt-1">xG: {result.homeXG}</div></div>
+                                            <div className="text-4xl text-slate-500">-</div>
+                                            <div className="text-left"><div className="text-2xl font-bold">{TEAMS[opponent]?.name}</div><div className="text-5xl font-bold text-slate-300 mt-2">{result.awayScore}</div><div className="text-sm text-slate-400 mt-1">xG: {result.awayXG}</div></div>
+                                        </div>
+                                        <div className="mt-6 max-w-md mx-auto"><div className="flex justify-between text-sm mb-1"><span>{result.possession[0]}%</span><span className="text-slate-400">Possession</span><span>{result.possession[1]}%</span></div><div className="h-3 bg-slate-700 rounded-full overflow-hidden flex"><div className="bg-amber-500 h-full" style={{ width: `${result.possession[0]}%` }} /><div className="bg-slate-400 h-full" style={{ width: `${result.possession[1]}%` }} /></div></div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3 mt-6 text-center">
+                                        {[['Shots', result.homeStats.shots, result.awayStats.shots], ['On Target', result.homeStats.onTarget, result.awayStats.onTarget], ['Corners', result.homeStats.corners, result.awayStats.corners], ['Fouls', result.homeStats.fouls, result.awayStats.fouls], ['Yellows', result.homeStats.yellows, result.awayStats.yellows], ['Pass%', `${result.homeStats.passAcc}%`, `${result.awayStats.passAcc}%`]].map(([l, h, a], i) => (
+                                            <div key={i} className="glass-light rounded-lg p-2"><div className="flex justify-between items-center text-sm"><span className="font-bold text-amber-400">{h}</span><span className="text-xs text-slate-400">{l}</span><span className="font-bold">{a}</span></div></div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-6"><h4 className="font-semibold mb-3">Timeline</h4><div className="space-y-2 max-h-32 overflow-y-auto">{result.events.map((e, i) => <div key={i} className="text-sm flex items-center gap-2"><span className="text-amber-400 font-mono">{e.min}'</span><span className={e.type === 'goal' ? 'text-green-400 font-bold' : 'text-yellow-400'}>{e.type === 'goal' ? '⚽' : '🟨'}</span><span className="text-slate-300">{PLAYERS[e.player]?.name}{e.assist && ` (${PLAYERS[e.assist]?.name})`}</span></div>)}</div></div>
+                                </div>
+                            )}
+                        </div>
+                        {result && subs.length > 0 && (
+                            <div className="glass rounded-xl p-4"><h3 className="font-semibold mb-4">🔄 Substitution Recommendations</h3><div className="space-y-2">{subs.map((r, i) => <div key={i} className={`glass-light rounded-lg p-3 border-l-4 ${r.priority === 'high' ? 'border-red-500' : 'border-amber-500'}`}><div className="flex items-center justify-between text-sm"><div><span className="text-red-400">↓ {PLAYERS[r.out]?.name}</span> → <span className="text-green-400">↑ {PLAYERS[r.in]?.name}</span></div><span className="text-xs text-slate-400">~{r.min}'</span></div><p className="text-xs text-slate-400 mt-1">{r.reason}</p></div>)}</div></div>
+                        )}
+                    </div>
+                )}
+
+                {tab === 'analysis' && result && (
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        <div className="glass rounded-xl p-4"><h3 className="font-semibold mb-4">📊 Player Ratings</h3><div className="space-y-2 max-h-[500px] overflow-y-auto">{lineup.map(id => { const s = result.playerStats[id]; const p = PLAYERS[id]; if (!s || !p) return null; const c = s.rating >= 8 ? 'text-green-400' : s.rating >= 7 ? 'text-amber-400' : s.rating >= 6 ? 'text-slate-300' : 'text-red-400'; return (<div key={id} className="glass-light rounded-lg p-3"><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-3"><span className={`text-2xl font-bold ${c}`}>{s.rating}</span><div><div className="font-semibold">{p.name}</div><div className="text-xs text-slate-400">{p.pos}</div></div></div><span className="text-xs">Stamina: <span className={s.stamina < 50 ? 'text-red-400' : 'text-green-400'}>{Math.round(s.stamina)}%</span></span></div><div className="grid grid-cols-4 gap-2 text-xs text-center"><div><span className="text-slate-400">Touches</span><br /><span className="font-bold">{s.touches}</span></div><div><span className="text-slate-400">Pass%</span><br /><span className="font-bold">{s.passAcc}%</span></div><div><span className="text-slate-400">Shots</span><br /><span className="font-bold">{s.shots}</span></div><div><span className="text-slate-400">Goals</span><br /><span className="font-bold text-amber-400">{s.goals}</span></div></div></div>); })}</div></div>
+                        <div className="glass rounded-xl p-4"><h3 className="font-semibold mb-4">🔥 Heat Maps</h3><div className="grid grid-cols-2 gap-4">{lineup.slice(0, 4).map(id => { const s = result.playerStats[id]; const p = PLAYERS[id]; if (!s || !p) return null; return (<div key={id} className="text-center"><div className="text-sm font-semibold mb-2">{p.name}</div><HeatMap data={s.heatMap} size={100} /></div>); })}</div><div className="mt-6"><h4 className="font-semibold mb-3">🏆 Awards</h4><div className="space-y-2">{lineup.filter(id => result.playerStats[id]?.rating >= 7.5).map(id => { const s = result.playerStats[id]; let award = s.rating >= 9 ? 'MOTM' : s.goals >= 2 ? 'Match Winner' : s.rating >= 8 ? 'Outstanding' : 'Solid'; return (<div key={id} className="flex items-center justify-between glass-light rounded-lg p-2"><span className="font-semibold">{PLAYERS[id]?.name}</span><span className="text-xs text-amber-400 px-2 py-1 bg-amber-500/20 rounded">{award}</span></div>); })}</div></div></div>
+                    </div>
+                )}
+                {tab === 'analysis' && !result && <div className="glass rounded-xl p-8 text-center"><div className="text-6xl mb-4">🎮</div><h3 className="text-xl font-semibold mb-2">No Match Data</h3><p className="text-slate-400">Run a simulation first</p></div>}
+            </main>
+            
+            <footer className="glass border-t border-white/10 mt-12"><div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm text-slate-500"><p>Pitch Intelligence Pro © 2026 | EA FC 25 Player Data</p><p className="mt-1">Tactical Phases • Heat Maps • Win Probability • Sub AI</p></div></footer>
+        </div>
+    );
+};
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
